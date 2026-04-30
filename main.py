@@ -21,6 +21,10 @@ def carregar_dados(fonte):
     arquivo = f"curtailment_horario_{fonte.lower()}.parquet"
     caminho = os.path.join(base_path, arquivo)
 
+    if not os.path.exists(caminho):
+        st.error(f"Arquivo não encontrado: {caminho}")
+        return pd.DataFrame()
+
     df = pd.read_parquet(caminho)
     df["Data"] = pd.to_datetime(df["Data"])
     return df
@@ -28,8 +32,13 @@ def carregar_dados(fonte):
 
 @st.cache_data
 def carregar_balanco():
-    base_path = r"C:\Users\bruno\OneDrive\Área de Trabalho\Harvard\TCC\Dashboard\Base_Dados"
+    # CORRIGIDO PARA CAMINHO RELATIVO
+    base_path = "Base_Dados" 
     caminho = os.path.join(base_path, "balanco_submercado_horario.parquet")
+
+    if not os.path.exists(caminho):
+        st.error(f"Arquivo não encontrado: {caminho}")
+        return pd.DataFrame()
 
     df = pd.read_parquet(caminho)
     df["Data"] = pd.to_datetime(df["Data"])
@@ -38,8 +47,13 @@ def carregar_balanco():
 
 @st.cache_data
 def carregar_usina():
-    base_path = r"C:\Users\bruno\OneDrive\Área de Trabalho\Harvard\TCC\Dashboard\Base_Dados"
+    # CORRIGIDO PARA CAMINHO RELATIVO
+    base_path = "Base_Dados" 
     caminho = os.path.join(base_path, "geracao_usina_horario.parquet")
+
+    if not os.path.exists(caminho):
+        st.error(f"Arquivo não encontrado: {caminho}")
+        return pd.DataFrame()
 
     df = pd.read_parquet(caminho)
     df["Data"] = pd.to_datetime(df["Data"])
