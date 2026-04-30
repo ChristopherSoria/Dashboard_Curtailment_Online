@@ -17,7 +17,7 @@ st.title("Análise de Curtailment: Eólico e Solar")
 # ==========================================
 @st.cache_data
 def carregar_dados(fonte):
-    base_path = r"C:\Users\bruno\OneDrive\Área de Trabalho\Harvard\TCC\Dashboard\Base_Dados"
+    base_path = "Base_Dados"
     arquivo = f"curtailment_horario_{fonte.lower()}.parquet"
     caminho = os.path.join(base_path, arquivo)
 
