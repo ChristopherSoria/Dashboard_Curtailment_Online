@@ -1,3 +1,6 @@
+
+
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -73,7 +76,7 @@ st.sidebar.header("Configurações")
 analise_escolhida = st.sidebar.selectbox(
     "Escolha a Análise:",
     [
-        "0. Painel Geral de Curtailment",
+        "0. Sumário e Guia do Dashboard",
         "1. Curtailment por Dia da Semana",
         "2. Curtailment por Hora do Dia",
         "3. Geração vs Referência (Dia da Semana)",
@@ -93,8 +96,23 @@ fonte_escolhida = st.sidebar.selectbox(
 st.sidebar.divider()
 
 st.sidebar.subheader("Filtro de Período")
-min_date = date(2024, 4, 1)
-max_date = date(2025, 12, 31)
+
+# O período disponível é definido automaticamente pelas bases carregadas.
+# Assim, novas atualizações dos Parquets não exigem alterar datas no código.
+datas_disponiveis = []
+for df_base in [df_eolico, df_solar, df_balanco, df_usina]:
+    if not df_base.empty and "Data" in df_base.columns:
+        datas_validas = df_base["Data"].dropna()
+        if not datas_validas.empty:
+            datas_disponiveis.extend([datas_validas.min(), datas_validas.max()])
+
+if datas_disponiveis:
+    min_date = pd.to_datetime(min(datas_disponiveis)).date()
+    max_date = pd.to_datetime(max(datas_disponiveis)).date()
+else:
+    # Fallback caso nenhuma base esteja disponível.
+    min_date = date(2024, 4, 1)
+    max_date = date(2026, 4, 30)
 
 intervalo_datas = st.sidebar.date_input(
     "Selecione as datas:",
@@ -103,10 +121,16 @@ intervalo_datas = st.sidebar.date_input(
     max_value=max_date
 )
 
+# Anos disponíveis para a análise de carga, obtidos diretamente da base de balanço.
+if not df_balanco.empty and "Data" in df_balanco.columns:
+    anos_carga = sorted(df_balanco["Data"].dropna().dt.year.unique().astype(int).tolist())
+else:
+    anos_carga = [2024, 2025, 2026]
+
 ano_carga = st.sidebar.selectbox(
     "Ano para análise de carga líquida:",
-    [2024, 2025],
-    index=1
+    anos_carga,
+    index=len(anos_carga) - 1
 )
 
 # ==========================================
@@ -890,7 +914,85 @@ def gerar_grafico_participacao_geracao(df_balanco, titulo):
 # ==========================================
 # 6. Lógica de Exibição
 # ==========================================
-if len(intervalo_datas) == 2:
+if analise_escolhida == "0. Sumário e Guia do Dashboard":
+    st.markdown("## Sumário do Dashboard")
+    st.markdown(
+        """
+        Este dashboard reúne análises de **curtailment (restrição de geração)**,
+        **geração elétrica**, **carga do sistema** e **MMGD**, permitindo comparar
+        o comportamento das fontes eólica e solar ao longo do tempo.
+
+        Use o menu lateral para escolher uma análise. Nas análises de curtailment,
+        também é possível selecionar **Eólico**, **Solar** ou **Eólico + Solar** e
+        definir o período desejado.
+        """
+    )
+
+    if datas_disponiveis:
+        st.info(
+            f"Período disponível nas bases carregadas: "
+            f"{min_date.strftime('%d/%m/%Y')} a {max_date.strftime('%d/%m/%Y')}."
+        )
+
+    st.markdown("### Análises disponíveis")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(
+            """
+            **1. Curtailment por Dia da Semana**  
+            Mostra como o percentual de energia restringida se distribui entre
+            segunda-feira e domingo, com destaque para a parcela associada a ENE.
+
+            **2. Curtailment por Hora do Dia**  
+            Apresenta o perfil horário das restrições ao longo das 24 horas do dia,
+            permitindo identificar os horários de maior incidência.
+
+            **3. Geração vs Referência (Dia da Semana)**  
+            Compara a geração verificada com a geração de referência para cada dia
+            da semana.
+
+            **4. Geração vs Referência (Hora do Dia)**  
+            Mostra a geração verificada e os cortes associados às razões REL, CNF e
+            ENE ao longo das 24 horas.
+            """
+        )
+
+    with col2:
+        st.markdown(
+            """
+            **5. Carga e Carga Líquida por Hora**  
+            Compara o perfil médio horário da carga com a carga líquida
+            (carga menos geração solar), separada por trimestre do ano escolhido.
+
+            **6. Carga por Dia da Semana**  
+            Apresenta a energia total consumida em cada dia da semana no período
+            selecionado.
+
+            **7. Fotovoltaica vs MMGD por Hora**  
+            Compara o perfil horário da geração fotovoltaica centralizada com a
+            geração de pequenas usinas/MMGD.
+
+            **8. Participação da Geração por Fonte**  
+            Mostra a participação percentual anual das fontes hidráulica, térmica,
+            eólica e solar na geração considerada pela base de balanço.
+            """
+        )
+
+    st.markdown("### Como usar")
+    st.markdown(
+        """
+        1. Escolha uma análise no menu lateral.  
+        2. Para análises de curtailment, selecione a fonte desejada.  
+        3. Ajuste o período de análise quando aplicável.  
+        4. Na análise de carga líquida, escolha o ano específico.  
+        5. Os limites de data e os anos disponíveis são atualizados automaticamente
+           conforme os arquivos Parquet do dashboard forem atualizados.
+        """
+    )
+
+elif len(intervalo_datas) == 2:
     start_date, end_date = pd.to_datetime(intervalo_datas[0]), pd.to_datetime(intervalo_datas[1])
 
     df_curtailment, cor_fonte, nome_fonte = escolher_base_curtailment(
@@ -910,53 +1012,7 @@ if len(intervalo_datas) == 2:
     if analise_escolhida != "5. Carga e Carga Líquida por Hora":
         st.subheader(f"Período: {start_date.strftime('%m/%Y')} a {end_date.strftime('%m/%Y')}")
 
-    if analise_escolhida == "0. Painel Geral de Curtailment":
-        st.markdown(f"### Painel geral de curtailment — {nome_fonte}")
-
-        fig1 = gerar_grafico_curtailment_mensal_percentual(
-            df_filtro_curtailment,
-            cor_fonte,
-            f"Curtailment mensal percentual - {nome_fonte}"
-        )
-
-        if fig1:
-            st.pyplot(fig1)
-        else:
-            st.warning("Sem dados para o gráfico mensal percentual.")
-
-        fig2 = gerar_grafico_curtailment_mensal_por_tipo(
-            df_filtro_curtailment,
-            f"Curtailment mensal por tipo de restrição - {nome_fonte}"
-        )
-
-        if fig2:
-            st.pyplot(fig2)
-        else:
-            st.warning("Sem dados para o gráfico mensal por tipo.")
-
-        fig3 = gerar_grafico_dia_semana(
-            df_filtro_curtailment,
-            cor_fonte,
-            f"Curtailment por dia da semana - {nome_fonte}"
-        )
-
-        if fig3:
-            st.pyplot(fig3)
-        else:
-            st.warning("Sem dados para o gráfico por dia da semana.")
-
-        fig4 = gerar_grafico_hora_dia(
-            df_filtro_curtailment,
-            cor_fonte,
-            f"Curtailment por hora do dia - {nome_fonte}"
-        )
-
-        if fig4:
-            st.pyplot(fig4)
-        else:
-            st.warning("Sem dados para o gráfico por hora.")
-
-    elif analise_escolhida == "1. Curtailment por Dia da Semana":
+    if analise_escolhida == "1. Curtailment por Dia da Semana":
         st.markdown(f"### Curtailment por dia da semana — {nome_fonte}")
 
         fig = gerar_grafico_dia_semana(
